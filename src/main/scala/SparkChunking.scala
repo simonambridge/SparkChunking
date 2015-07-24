@@ -76,10 +76,7 @@ object SparkChunking {
     // next challenge will be to save the chunks but I should really try that myself first!!!
 
 
-    //val meta = Map(fileName -> chunkCount)
-    //val input:Input = Resource.fromFile(fileName)
-    //input.byteArray
- 
+    //val meta = Map(fileName -> chunkCount) 
     //meta.map(F => (F(0),F(1))).saveToCassandra("benchmark","chunk_meta",SomeColumns("fileName","chunk_count"))
     //case class fileMeta (filename: String, chunks: Int)
     
