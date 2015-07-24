@@ -31,8 +31,6 @@ libraryDependencies ++= Seq(
   "org.json4s"          %% "json4s-jackson" % Json4s,
   "org.json4s"          %% "json4s-native" % Json4s
 )
-libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-core" % "0.4.2"
-libraryDependencies += "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.2"
 
 //We do this so that Spark Dependencies will not be bundled with our fat jar but will still be included on the classpath
 //When we do a sbt/run
