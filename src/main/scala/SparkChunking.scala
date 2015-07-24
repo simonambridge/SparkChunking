@@ -63,20 +63,22 @@ object SparkChunking {
     val fileExists = new java.io.File(fqFileName).exists   
     val fileSize = new java.io.File(fileName).length()
 
-    val chunkcount = (fileSize / 32768.0).intValue
+    val chunkCount = (fileSize / 32768.0).intValue
 
     println("File path    : " + filePath)
     println("File name    : " + fileName)
     println("File exists  : " + fileExists)
     println("File size    : " + fileSize)
-    println("Chunk count  : " + chunkcount)
+    println("Chunk count  : " + chunkCount)
 
+    val meta = Map(fileName -> chunkCount)
 
-    val input:Input = Resource.fromFile("/home/dse/Chunking/12Kfile")
+    val input:Input = Resource.fromFile(fileName)
     input.byteArray
-    //val chunkCount = (input.bytes / 32768.0).intValue
-    //println("Chunk count: " + chunkcount)
+ 
+    meta.saveToCassandra("benchmark","chunk_meta",SomeColumns("fileName","chunk_count"))
 
+ 
   }
 
 }
