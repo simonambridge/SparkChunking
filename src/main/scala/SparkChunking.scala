@@ -1,7 +1,7 @@
 import org.apache.log4j.{Level, Logger}
 
 import org.apache.spark.sql.cassandra.CassandraSQLContext
-//import org.apache.spark.{SparkContext, SparkConf}
+import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark._
 //import org.apache.spark.SparkContext._
 import com.datastax.spark.connector._
@@ -57,7 +57,7 @@ object SparkChunking {
     val filePath = "/home/dse/Chunking/"
     val fileName = "100Kfile"
     val fqFileName = filePath + fileName
-    val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
+    //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
 
     //Java
     val fileExists = new java.io.File(fqFileName).exists   
@@ -70,14 +70,19 @@ object SparkChunking {
     println("File exists  : " + fileExists)
     println("File size    : " + fileSize)
     println("Chunk count  : " + chunkCount)
+    
+    // Ryan:
+    // save fileName and chunkCount to table chunk_meta
+    // next challenge will be to save the chunks but I should really try that myself first!!!
 
-    val meta = Map(fileName -> chunkCount)
 
-    val input:Input = Resource.fromFile(fileName)
-    input.byteArray
+    //val meta = Map(fileName -> chunkCount)
+    //val input:Input = Resource.fromFile(fileName)
+    //input.byteArray
  
-    meta.saveToCassandra("benchmark","chunk_meta",SomeColumns("fileName","chunk_count"))
-
+    //meta.map(F => (F(0),F(1))).saveToCassandra("benchmark","chunk_meta",SomeColumns("fileName","chunk_count"))
+    //case class fileMeta (filename: String, chunks: Int)
+    
  
   }
 
