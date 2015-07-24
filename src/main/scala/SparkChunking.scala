@@ -54,10 +54,29 @@ object SparkChunking {
 
     createSchema(cc, cassandraKeyspace, cassandraTable1, cassandraTable2)
 
-    val bigfile = sc.binaryFiles(s"file:///home/dse/Chunking/100Kfile")
-    val someFile = new File("file:///home/dse/Chunking/100Kfile")
-    val fileSize = someFile.length
+    val filePath = "/home/dse/Chunking/"
+    val fileName = "100Kfile"
+    val fqFileName = filePath + fileName
+    val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
+
+    //Java
+    val fileExists = new java.io.File(fqFileName).exists   
+    val fileSize = new java.io.File(fileName).length()
+
     val chunkcount = (fileSize / 32768.0).intValue
+
+    println("File path    : " + filePath)
+    println("File name    : " + fileName)
+    println("File exists  : " + fileExists)
+    println("File size    : " + fileSize)
+    println("Chunk count  : " + chunkcount)
+
+
+    val input:Input = Resource.fromFile("/home/dse/Chunking/12Kfile")
+    input.byteArray
+    //val chunkCount = (input.bytes / 32768.0).intValue
+    //println("Chunk count: " + chunkcount)
+
   }
 
 }

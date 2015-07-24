@@ -1,0 +1,2 @@
+dse spark-submit --class SparkChunking ./target/scala-2.10/chunking-assembly-0.2.jar
+

@@ -10,6 +10,8 @@ import com.datastax.spark.connector.cql.CassandraConnector
 import com.datastax.driver.core.ConsistencyLevel
 import com.datastax.driver.core.utils.UUIDs
 
+import scalax.io._
+import java.io._
 /* --- */
 
 object SparkChunking {
@@ -52,10 +54,15 @@ object SparkChunking {
 
     createSchema(cc, cassandraKeyspace, cassandraTable1, cassandraTable2)
 
-    val bigfile = sc.binaryFiles(s"file:///home/dse/Chunking/100Kfile")
+    val bigfile = sc.binaryFiles(s"file:///home/dse/Chunking/100Kfile") 
+    //Java
     val someFile = new File("file:///home/dse/Chunking/100Kfile")
-    val fileSize = someFile.length
+    // Scalax
+    val fileSize = someFile.length                               
+
     val chunkcount = (fileSize / 32768.0).intValue
+    println("Chunk count: ", chunkcount)
+    chunkcount.println
   }
 
 }
