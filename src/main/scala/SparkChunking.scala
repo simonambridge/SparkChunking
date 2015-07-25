@@ -3,7 +3,7 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.spark.{SparkContext, SparkConf}
 import org.apache.spark._
-//import org.apache.spark.SparkContext._
+import org.apache.spark.SparkContext._
 import com.datastax.spark.connector._
 
 import com.datastax.spark.connector.cql.CassandraConnector
@@ -13,6 +13,7 @@ import com.datastax.driver.core.utils.UUIDs
 import scalax.io._
 import java.io._
 /* --- */
+ case class metaDataCaseClass (test_id: Int, filename: String, chunkcount: Int)
 
 object SparkChunking {
 
@@ -22,13 +23,15 @@ object SparkChunking {
       session.execute(s"CREATE KEYSPACE IF NOT EXISTS ${keySpaceName} WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor':1}")
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
-                      s"${keySpaceName}.${tableName1} (test_id text, chunk_count int, primary key( test_id ));")
+                      s"${keySpaceName}.${tableName1} (test_id int, filename text, chunkcount int, " +
+                      s"primary key( test_id ));")
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
-                      s"${keySpaceName}.${tableName2} (test_id text, filename text, seqnum int, " +
-                      s"bytes blob, primary key ((test_id, filename, seqnum)));")
+                      s"${keySpaceName}.${tableName2} (test_id int, filename text, seqnum int, bytes blob, " +
+                      s"primary key ((test_id, filename, seqnum)));")
     }
   }
+
 
   /* Set the logger level. Optionally increase value from Level.ERROR to LEVEL.WARN or more verbose yet, LEVEL.INFO */
   Logger.getRootLogger.setLevel(Level.ERROR)
@@ -54,32 +57,41 @@ object SparkChunking {
 
     createSchema(cc, cassandraKeyspace, cassandraTable1, cassandraTable2)
 
-    val filePath = "/home/dse/Chunking/"
-    val fileName = "100Kfile"
-    val fqFileName = filePath + fileName
+// main code starts here.....
+
+    val file_path = "/home/dse/Chunking/"
+    val file_name = "100Kfile"
+    val fq_file_name = file_path + file_name
     //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
 
     //Java
-    val fileExists = new java.io.File(fqFileName).exists   
-    val fileSize = new java.io.File(fileName).length()
+    val file_exists = new java.io.File(fq_file_name).exists   
+    val file_size = new java.io.File(file_name).length()
 
-    val chunkCount = (fileSize / 32768.0).intValue
+    val chunk_count = (file_size / 32768.0).intValue
+    val seq_num = 1
 
-    println("File path    : " + filePath)
-    println("File name    : " + fileName)
-    println("File exists  : " + fileExists)
-    println("File size    : " + fileSize)
-    println("Chunk count  : " + chunkCount)
+    println("File path    : " + file_path)
+    println("File name    : " + file_name)
+    println("File exists  : " + file_exists)
+    println("File size    : " + file_size)
+    println("Chunk count  : " + chunk_count)
+    println("Test ID      : " + seq_num)
     
     // Ryan:
     // save fileName and chunkCount to table chunk_meta
+    // This works:
+ 
+
+    val metaDataSeq = Seq(new metaDataCaseClass(seq_num, file_name, chunk_count))
+    val collection = sc.parallelize(metaDataSeq)
+    collection.saveToCassandra("benchmark","chunk_meta",SomeColumns("test_id","filename","chunkcount"))
+
+
+
+
     // next challenge will be to save the chunks but I should really try that myself first!!!
-
-
-    //val meta = Map(fileName -> chunkCount) 
-    //meta.map(F => (F(0),F(1))).saveToCassandra("benchmark","chunk_meta",SomeColumns("fileName","chunk_count"))
-    //case class fileMeta (filename: String, chunks: Int)
-    
+   
  
   }
 
