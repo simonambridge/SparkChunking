@@ -13,7 +13,16 @@ import com.datastax.driver.core.utils.UUIDs
 import scalax.io._
 import java.io._
 /* --- */
- case class metaDataCaseClass (test_id: Int, filename: String, chunkcount: Int)
+
+ import scala.Predef._ 
+ import org.apache.spark.streaming.StreamingContext._ 
+ import scala.language.implicitConversions
+ import org.apache.spark.sql._
+
+/* --- */
+
+ case class chunkMetaDataCaseClass (fileid: Int, filename: String, filesize: Long, chunkcount: Long)
+ case class chunkDataCaseClass (fileid: Int, filename: String, seqnum: Long, bytes: Array[Byte])
 
 object SparkChunking {
 
@@ -23,12 +32,12 @@ object SparkChunking {
       session.execute(s"CREATE KEYSPACE IF NOT EXISTS ${keySpaceName} WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor':1}")
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
-                      s"${keySpaceName}.${tableName1} (test_id int, filename text, chunkcount int, " +
-                      s"primary key( test_id ));")
+                      s"${keySpaceName}.${tableName1} (fileid int, filename text, filesize bigint, chunkcount bigint, " +
+                      s"primary key( fileid ));")
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
-                      s"${keySpaceName}.${tableName2} (test_id int, filename text, seqnum int, bytes blob, " +
-                      s"primary key ((test_id, filename, seqnum)));")
+                      s"${keySpaceName}.${tableName2} (fileid int, filename text, seqnum bigint, bytes blob, " +
+                      s"primary key ((fileid, filename, seqnum)));")
     }
   }
 
@@ -36,7 +45,7 @@ object SparkChunking {
   /* Set the logger level. Optionally increase value from Level.ERROR to LEVEL.WARN or more verbose yet, LEVEL.INFO */
   Logger.getRootLogger.setLevel(Level.ERROR)
 
-   def main(args: Array[String]) {
+  def main(args: Array[String]) {
 
     val sparkMasterHost = "127.0.0.1"
     val cassandraHost = "127.0.0.1"
@@ -45,21 +54,21 @@ object SparkChunking {
     val cassandraTable2 = "chunk_data"
 
     // Tell Spark the address of one Cassandra node:
-    val conf = new SparkConf(true)
+    val sparkConf = new SparkConf(true)
       .set("spark.cassandra.connection.host", cassandraHost)
       .set("spark.cleaner.ttl", "3600")
       .setMaster("local[10]")
       .setAppName(getClass.getSimpleName)
 
     // Connect to the Spark cluster:
-    lazy val sc = new SparkContext(conf)
+    lazy val sc = new SparkContext(sparkConf)
     lazy val cc = CassandraConnector(sc.getConf)
 
     createSchema(cc, cassandraKeyspace, cassandraTable1, cassandraTable2)
 
-// main code starts here.....
+// ========== main code starts here =========
 
-    val file_path = "/home/dse/Chunking/"
+    val file_path = "/home/dse/SparkChunking/"
     val file_name = "100Kfile"
     val fq_file_name = file_path + file_name
     //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
@@ -69,30 +78,20 @@ object SparkChunking {
     val file_size = new java.io.File(file_name).length()
 
     val chunk_count = (file_size / 32768.0).intValue
-    val seq_num = 1
+    val file_id = 1
 
     println("File path    : " + file_path)
     println("File name    : " + file_name)
     println("File exists  : " + file_exists)
     println("File size    : " + file_size)
     println("Chunk count  : " + chunk_count)
-    println("Test ID      : " + seq_num)
-    
-    // Ryan:
-    // save fileName and chunkCount to table chunk_meta
-    // This works:
+    println("File ID      : " + file_id)
  
-
-    val metaDataSeq = Seq(new metaDataCaseClass(seq_num, file_name, chunk_count))
-    val collection = sc.parallelize(metaDataSeq)
-    collection.saveToCassandra("benchmark","chunk_meta",SomeColumns("test_id","filename","chunkcount"))
-
-
+    // ------ save meta data ------
+    val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_id, file_name, file_size, chunk_count))
+    val collection = sc.parallelize(chunkMetaDataSeq)
+    collection.saveToCassandra("benchmark","chunk_meta",SomeColumns("fileid","filename","filesize","chunkcount"))
 
 
-    // next challenge will be to save the chunks but I should really try that myself first!!!
-   
- 
   }
-
 }
