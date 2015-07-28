@@ -8,7 +8,7 @@ case class chunkMetaDataCaseClass(fileid: Int, filename: String, filesize: Long,
 
 case class chunkDataCaseClass(fileid: Int, filename: String, seqnum: Long, bytes: Array[Byte])
 
-object SparkChunking  {
+object SparkChunking {
 
 
   def createSchema(cc: CassandraConnector, keySpaceName: String, tableName1: String, tableName2: String) = {
@@ -26,6 +26,14 @@ object SparkChunking  {
   }
 
   def main(args: Array[String]) {
+
+    // Check how many arguments were passed in
+    if(args.length == 0)
+    {
+      System.out.println("Error - no filename supplied")
+      System.out.println("Proper Usage is: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-1.0.jar <filename>");
+      System.exit(0);
+    }
 
     /* Set the logger level. Optionally increase value from Level.ERROR to LEVEL.WARN or more verbose yet, LEVEL.INFO */
     Logger.getRootLogger.setLevel(Level.ERROR)
@@ -62,7 +70,7 @@ object SparkChunking  {
     val file_size = new java.io.File(file_name).length()
 
     val chunk_count = (file_size / 32768.0).intValue
-    val remainder   = file_size % 32768
+    val remainder = file_size % 32768
     val file_id = 1
 
     println("File path    : " + file_path)
@@ -74,64 +82,66 @@ object SparkChunking  {
     println("File ID      : " + file_id)
 
     // ------ save meta data ------
-    val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_id, file_name, file_size, chunk_count))
-    val collection = sc.parallelize(chunkMetaDataSeq)
-    println("Saving blob file metadata to Cassandra....")
-    collection.saveToCassandra("benchmark", "chunk_meta", SomeColumns("fileid", "filename", "filesize", "chunkcount"))
+    if (chunk_count > 0 || remainder > 0) {
+      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_id, file_name, file_size, chunk_count))
+      val collection = sc.parallelize(chunkMetaDataSeq)
+      println("Saving blob file metadata to Cassandra....")
+      collection.saveToCassandra("benchmark", "chunk_meta", SomeColumns("fileid", "filename", "filesize", "chunkcount"))
 
-    println("File " + file_name + " metadata saved to Cassandra")
+      println("File " + file_name + " metadata saved to Cassandra")
 
-    // ------ save chunk data ------
-    def readBinaryFile(input: InputStream): Array[Byte] = {
-      val fos = new ByteArrayOutputStream(65535)
-      val bis = new BufferedInputStream(input)
-      val buf = new Array[Byte](1024)
-      Stream.continually(bis.read(buf))
-        .takeWhile(_ != -1)
-        .foreach(fos.write(buf, 0, _))
-      fos.toByteArray
-    }
-    val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
-    println("%s, %d bytes".format(file_name, fb.size))
+      // ------ save chunk data ------
+      def readBinaryFile(input: InputStream): Array[Byte] = {
+        val fos = new ByteArrayOutputStream(65535)
+        val bis = new BufferedInputStream(input)
+        val buf = new Array[Byte](1024)
+        Stream.continually(bis.read(buf))
+          .takeWhile(_ != -1)
+          .foreach(fos.write(buf, 0, _))
+        fos.toByteArray
+      }
+      val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
+      println("%s, %d bytes".format(file_name, fb.size))
 
-    val x = fb.grouped(32768).toArray // single element array
-    // scala> println(x(0).size)
-    // 32768
-    // scala> println(x(1).size)
-    // 32768
-    // scala> println(x(2).size)
-    // 32768
-    // scala> println(x(chunk_count).size)
-    // 4096
-    // Total is 102400
-    // println(x(22).size)
-    // java.lang.ArrayIndexOutOfBoundsException: 22
-    // scala> println("%s, %d bytes".format(file_name, fb.size))
-    // 100Kfile, 102400 bytes
+      val x = fb.grouped(32768).toArray // single element array
+      // scala> println(x(0).size)
+      // 32768
+      // scala> println(x(1).size)
+      // 32768
+      // scala> println(x(2).size)
+      // 32768
+      // scala> println(x(chunk_count).size)
+      // 4096
+      // Total is 102400
+      // println(x(22).size)
+      // java.lang.ArrayIndexOutOfBoundsException: 22
+      // scala> println("%s, %d bytes".format(file_name, fb.size))
+      // 100Kfile, 102400 bytes
 
-    var i: Int = 1
+      var i: Int = 1
 
-    // while ({i <= chunk_count}) {
-    //       println(x(i).size)
-    //       i=i+1
-    //     }
-    // 32768
-    // 32768
-    // 32768
-    // 4096
+      // while ({i <= chunk_count}) {
+      //       println(x(i).size)
+      //       i=i+1
+      //     }
+      // 32768
+      // 32768
+      // 32768
+      // 4096
 
-    // scala> fb.grouped(32768).toArray.zipWithIndex foreach(e => println(e._2, e._1.size))
-    // returns a tuple of value and index
-    // (0,32768)
-    // (1,32768)
-    // (2,32768)
-    // (3,4096)
+      // scala> fb.grouped(32768).toArray.zipWithIndex foreach(e => println(e._2, e._1.size))
+      // returns a tuple of value and index
+      // (0,32768)
+      // (1,32768)
+      // (2,32768)
+      // (3,4096)
 
-    println("Saving binary chunks to Cassandra....")
-    val y = fb.grouped(32768)
-    var totalSize = 0
-    if (chunk_count > 0) {
-      while ( { i <= chunk_count  }) {
+      println("Saving binary chunks to Cassandra....")
+      val y = fb.grouped(32768)
+      var totalSize = 0
+      while ( {
+        i <= chunk_count
+      }) {
         val z = y.next
         println("Saving chunk #" + i + ", size " + z.size)
         totalSize = totalSize + z.size
@@ -151,6 +161,7 @@ object SparkChunking  {
       println("Total file size : " + totalSize)
       //fb.grouped(32768).map( chunk_tuple => (test_id, file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
       //saveToCassandra("benchmark","chunk_data",SomeColumns("fileid","filename","seqnum","bytes"))
+
     }
   }
 }
