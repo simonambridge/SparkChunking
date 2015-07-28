@@ -1,0 +1,30 @@
+name := "Spark Chunkin"
+
+version := "0.1"
+
+scalaVersion := "2.10.5"
+
+val SparkVersion = "1.2.2"
+val SparkCassandraVersion = "1.2.2"
+
+ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
+
+libraryDependencies ++= Seq(
+  ("org.apache.spark" %%  "spark-core"  % SparkVersion % "provided").
+    exclude("org.eclipse.jetty.orbit", "javax.transaction").
+    exclude("org.eclipse.jetty.orbit", "javax.mail").
+    exclude("org.eclipse.jetty.orbit", "javax.activation").
+    exclude("commons-beanutils", "commons-beanutils-core").
+    exclude("commons-collections", "commons-collections").
+    exclude("commons-collections", "commons-collections").
+    exclude("com.esotericsoftware.minlog", "minlog")
+)
+
+libraryDependencies ++= Seq(
+  "com.datastax.spark"  %%  "spark-cassandra-connector" % SparkCassandraVersion,
+  "org.apache.spark" %% "spark-streaming" % SparkVersion,
+  "org.apache.spark" %% "spark-sql" % SparkVersion,
+  "com.github.scala-incubator.io" %% "scala-io-core" % "0.4.2",
+  "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.2"
+)
+

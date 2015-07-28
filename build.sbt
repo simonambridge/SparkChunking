@@ -1,30 +1,32 @@
-name := "Spark Chunkin"
+name := "Spark Chunking"
 
-version := "0.1"
+version := "1.0"
 
-scalaVersion := "2.10.5"
+scalaVersion := "2.10.4"
 
-val SparkVersion = "1.2.2"
-val SparkCassandraVersion = "1.2.2"
+organization := "datastax.com"
 
-ivyScala := ivyScala.value map { _.copy(overrideScalaVersion = true) }
+libraryDependencies += "org.apache.spark" %% "spark-core" % "1.1.0"
 
-libraryDependencies ++= Seq(
-  ("org.apache.spark" %%  "spark-core"  % SparkVersion % "provided").
-    exclude("org.eclipse.jetty.orbit", "javax.transaction").
-    exclude("org.eclipse.jetty.orbit", "javax.mail").
-    exclude("org.eclipse.jetty.orbit", "javax.activation").
-    exclude("commons-beanutils", "commons-beanutils-core").
-    exclude("commons-collections", "commons-collections").
-    exclude("commons-collections", "commons-collections").
-    exclude("com.esotericsoftware.minlog", "minlog")
-)
+libraryDependencies += "org.apache.spark" %% "spark-sql" % "1.1.0"
 
-libraryDependencies ++= Seq(
-  "com.datastax.spark"  %%  "spark-cassandra-connector" % SparkCassandraVersion,
-  "org.apache.spark" %% "spark-streaming" % SparkVersion,
-  "org.apache.spark" %% "spark-sql" % SparkVersion,
-  "com.github.scala-incubator.io" %% "scala-io-core" % "0.4.2",
-  "com.github.scala-incubator.io" %% "scala-io-file" % "0.4.2"
-)
+libraryDependencies += "org.apache.spark" %% "spark-streaming" % "1.1.0"
 
+libraryDependencies += "org.apache.spark" %% "spark-streaming-twitter" % "1.1.0"
+
+libraryDependencies += "org.apache.spark" %% "spark-mllib" % "1.1.0"
+
+libraryDependencies += "com.google.code.gson" % "gson" % "2.3"
+
+libraryDependencies += "org.twitter4j" % "twitter4j-core" % "3.0.3"
+
+libraryDependencies += "commons-cli" % "commons-cli" % "1.2"
+
+libraryDependencies += "com.datastax.spark" % "spark-cassandra-connector_2.10" % "1.1.1"
+
+libraryDependencies += "com.xeiam.xchart" % "xchart" % "2.4.3"
+
+resolvers += "Akka Repository" at "http://repo.akka.io/releases/"
+
+resolvers += "erichseifert.de" at "http://mvn.erichseifert.de/maven2"
+    
