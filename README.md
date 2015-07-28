@@ -7,6 +7,7 @@
 ```./run <file_to_chunk>```
 
 1. If no file name supplied:
+
 ```[DSE 4.6 SparkChunking]$ time ./run```
 
 ```Error - no filename supplied```
