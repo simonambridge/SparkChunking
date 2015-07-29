@@ -4,9 +4,9 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
 
-case class chunkMetaDataCaseClass(fileid: Int, filename: String, filesize: Long, chunkcount: Long)
+case class chunkMetaDataCaseClass(filename: String, filesize: Long, chunkcount: Long)
 
-case class chunkDataCaseClass(fileid: Int, filename: String, seqnum: Long, bytes: Array[Byte])
+case class chunkDataCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
 
 object SparkChunking {
 
@@ -16,12 +16,12 @@ object SparkChunking {
       session.execute(s"CREATE KEYSPACE IF NOT EXISTS ${keySpaceName} WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor':1}")
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
-        s"${keySpaceName}.${tableName1} (fileid int, filename text, filesize bigint, chunkcount bigint, " +
-        s"primary key( fileid ));")
+        s"${keySpaceName}.${tableName1} (filename text, filesize bigint, chunkcount bigint, " +
+        s"primary key( filename ));")
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
-        s"${keySpaceName}.${tableName2} (fileid int, filename text, seqnum bigint, bytes blob, " +
-        s"primary key ((fileid, filename, seqnum)));")
+        s"${keySpaceName}.${tableName2} (filename text, seqnum bigint, bytes blob, " +
+        s"primary key ((filename, seqnum)));")
     }
   }
 
@@ -31,7 +31,7 @@ object SparkChunking {
     if(args.length == 0)
     {
       System.out.println("Error - no filename supplied")
-      System.out.println("Proper Usage is: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-1.0.jar <filename>");
+      System.out.println("Proper Usage is: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename>");
       System.exit(0);
     }
 
@@ -48,6 +48,7 @@ object SparkChunking {
     val sparkConf = new SparkConf(true)
       .set("spark.cassandra.connection.host", cassandraHost)
       .set("spark.cleaner.ttl", "3600")
+      //.setMaster("spark://" + sparkMasterHost + ":7077")
       .setMaster("local[2]")
       .setAppName(getClass.getSimpleName)
 
@@ -59,7 +60,7 @@ object SparkChunking {
 
     // ========== main code starts here =========
 
-    val file_path = "/home/dse/"
+    //val file_path = "/home/dse/"
     //val file_name = "100Kfile"
     val file_name: String = args(0) // scala doesn't like args[0]
     val fq_file_name = file_name
@@ -71,22 +72,20 @@ object SparkChunking {
 
     val chunk_count = (file_size / 32768.0).intValue
     val remainder = file_size % 32768
-    val file_id = 1
 
-    println("File path    : " + file_path)
+    //println("File path    : " + file_path)
     println("File name    : " + file_name)
     println("File exists  : " + file_exists)
     println("File size    : " + file_size)
     println("32K Chunks   : " + chunk_count)
     println("Modulo       : " + remainder)
-    println("File ID      : " + file_id)
 
     // ------ save meta data ------
     if (chunk_count > 0 || remainder > 0) {
-      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_id, file_name, file_size, chunk_count))
+      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, chunk_count))
       val collection = sc.parallelize(chunkMetaDataSeq)
       println("Saving blob file metadata to Cassandra....")
-      collection.saveToCassandra("benchmark", "chunk_meta", SomeColumns("fileid", "filename", "filesize", "chunkcount"))
+      collection.saveToCassandra("benchmark", "chunk_meta", SomeColumns("filename", "filesize", "chunkcount"))
 
       println("File " + file_name + " metadata saved to Cassandra")
 
@@ -145,23 +144,24 @@ object SparkChunking {
         val z = y.next
         println("Saving chunk #" + i + ", size " + z.size)
         totalSize = totalSize + z.size
-        val chunkDataSeq = Seq(new chunkDataCaseClass(file_id, file_name, i, z))
+        val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        collection.saveToCassandra("benchmark", "chunk_data", SomeColumns("fileid", "filename", "seqnum", "bytes"))
+        collection.saveToCassandra("benchmark", "chunk_data", SomeColumns("filename", "seqnum", "bytes"))
         i = i + 1
       }
       if (remainder > 0) {
         val z = y.next
         println("Saving chunk #" + i + ", size " + z.size)
-        val chunkDataSeq = Seq(new chunkDataCaseClass(file_id, file_name, i, z))
+        val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        collection.saveToCassandra("benchmark", "chunk_data", SomeColumns("fileid", "filename", "seqnum", "bytes"))
+        collection.saveToCassandra("benchmark", "chunk_data", SomeColumns("filename", "seqnum", "bytes"))
         totalSize = totalSize + z.size
       }
-      println("Total file size : " + totalSize)
-      //fb.grouped(32768).map( chunk_tuple => (test_id, file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
-      //saveToCassandra("benchmark","chunk_data",SomeColumns("fileid","filename","seqnum","bytes"))
+      println("Total chunks saved : " + totalSize)
+      //fb.grouped(32768).map( chunk_tuple => (file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
+      //saveToCassandra("benchmark","chunk_data",SomeColumns("filename","seqnum","bytes"))
 
     }
+    sc.stop()
   }
 }
