@@ -21,7 +21,7 @@ object SparkChunking {
 
       session.execute("CREATE TABLE IF NOT EXISTS " +
         s"${keySpaceName}.${tableName2} (filename text, seqnum bigint, bytes blob, " +
-        s"primary key ((filename, seqnum)));")
+        s"primary key ((filename), seqnum));")
     }
   }
 
@@ -85,7 +85,7 @@ object SparkChunking {
       val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, chunk_count))
       val collection = sc.parallelize(chunkMetaDataSeq)
       println("Saving blob file metadata to Cassandra....")
-      collection.saveToCassandra("benchmark", "chunk_meta", SomeColumns("filename", "filesize", "chunkcount"))
+      collection.saveToCassandra(cassandraKeyspace, cassandraTable1, SomeColumns("filename", "filesize", "chunkcount"))
 
       println("File " + file_name + " metadata saved to Cassandra")
 
@@ -146,7 +146,7 @@ object SparkChunking {
         totalSize = totalSize + z.size
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        collection.saveToCassandra("benchmark", "chunk_data", SomeColumns("filename", "seqnum", "bytes"))
+        collection.saveToCassandra(cassandraKeyspace, cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
         i = i + 1
       }
       if (remainder > 0) {
@@ -154,12 +154,12 @@ object SparkChunking {
         println("Saving chunk #" + i + ", size " + z.size)
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        collection.saveToCassandra("benchmark", "chunk_data", SomeColumns("filename", "seqnum", "bytes"))
+        collection.saveToCassandra(cassandraKeyspace, cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
         totalSize = totalSize + z.size
       }
       println("Total chunks saved : " + totalSize)
       //fb.grouped(32768).map( chunk_tuple => (file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
-      //saveToCassandra("benchmark","chunk_data",SomeColumns("filename","seqnum","bytes"))
+      //saveToCassandra(cassandraKeyspace, cassandraTable2,SomeColumns("filename","seqnum","bytes"))
 
     }
     sc.stop()
