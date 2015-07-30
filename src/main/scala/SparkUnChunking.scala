@@ -48,14 +48,31 @@ object SparkUnChunking {
     //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
 
     csc.setKeyspace(cassandraKeyspace)
-    val x = csc.sql(s"select chunkcount from chunk_meta where filename='1Mfile';")
-    val chunk_count = x.first()
-    //val file_size = csc.sql(s"select filesize from chunk_meta where filename='1Mfile';").first().foreach(println)
+    // dereference the first thing in the list
+    // it comes back as an array of the columns in that row - which may contain 1 column
+    // so 0 is the 0th element
+    val chunk_count = csc.sql(s"select chunkcount from chunk_meta where filename='1Mfile';").first()(0)
+    val file_size = csc.sql(s"select filesize from chunk_meta where filename='1Mfile';").first()(0)
 
+    //val chunk: Option[Int] = chunk_count
     println("File name    : " + file_name)
-    //println("File size    : " + file_size)
+    println("File size    : " + file_size)
     println("32K Chunks   : " + chunk_count)
-    println(csc.sql(s"select chunkcount from chunk_meta where filename='1Mfile';").first())
+
+    var out = None: Option[FileOutputStream]
+
+
+
+
+
+
+
+
+
+
+
+
+
     System.exit(0)
 
     sc.stop()
