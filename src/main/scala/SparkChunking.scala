@@ -102,7 +102,7 @@ object SparkChunking {
       val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
       println("%s, %d bytes".format(file_name, fb.size))
 
-      val x = fb.grouped(32768).toArray // single element array
+      //val x = fb.grouped(32768).toArray // single element array
       // scala> println(x(0).size)
       // 32768
       // scala> println(x(1).size)
@@ -119,7 +119,7 @@ object SparkChunking {
 
       var i: Int = 1
 
-      // while ({i <= chunk_count}) {
+      // while ({i <= chunk_count}) {  // 100K file
       //       println(x(i).size)
       //       i=i+1
       //     }

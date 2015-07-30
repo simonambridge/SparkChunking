@@ -1,9 +1,14 @@
+import java.nio.ByteBuffer
+import java.sql.Blob
+
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
 import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
+
+import scala.util.Try
 
 case class chunkMetaCaseClass(filename: String, filesize: Long, chunkcount: Long)
 case class chunkCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
@@ -51,7 +56,7 @@ object SparkUnChunking {
     // dereference the first thing in the list
     // it comes back as an array of the columns in that row - which may contain 1 column
     // so 0 is the 0th element
-    val chunk_count = csc.sql(s"select chunkcount from chunk_meta where filename='1Mfile';").first()(0)
+    val chunk_count:BigInt = csc.sql(s"select chunkcount from chunk_meta where filename='1Mfile';").first()(0).asInstanceOf[Long]
     val file_size = csc.sql(s"select filesize from chunk_meta where filename='1Mfile';").first()(0)
 
     //val chunk: Option[Int] = chunk_count
@@ -61,6 +66,24 @@ object SparkUnChunking {
 
     var out = None: Option[FileOutputStream]
 
+    var i: BigInt = 1
+
+    try {
+      out = Some(new FileOutputStream(file_name + "_copy"))
+      while ( {
+        i <= chunk_count
+      }) {
+        val chunk:Array[Byte] = csc.sql(s"select bytes from chunk_data where filename='$file_name' and seqnum=$i;").first()(0).asInstanceOf[Array[Byte]]
+        println("Writing chunk " + i + " to " + file_name + "_copy" )
+        out.get.write(chunk)
+        i=i+1
+      }
+    } catch {
+      case e: IOException => e.printStackTrace
+    } finally {
+      println("Entered finally ...")
+      if (out.isDefined) out.get.close
+    }
 
 
 
