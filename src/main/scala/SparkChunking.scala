@@ -72,6 +72,8 @@ object SparkChunking {
 
     val chunk_count = (file_size / 32768.0).intValue
     val remainder = file_size % 32768
+    var total_chunks = chunk_count
+    if (remainder > 0) {total_chunks=chunk_count + 1}
 
     //println("File path    : " + file_path)
     println("File name    : " + file_name)
@@ -79,10 +81,11 @@ object SparkChunking {
     println("File size    : " + file_size)
     println("32K Chunks   : " + chunk_count)
     println("Modulo       : " + remainder)
+    println("Total chunks : " + total_chunks)
 
     // ------ save meta data ------
     if (chunk_count > 0 || remainder > 0) {
-      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, chunk_count))
+      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, total_chunks))
       val collection = sc.parallelize(chunkMetaDataSeq)
       println("Saving blob file metadata to Cassandra....")
       collection.saveToCassandra(cassandraKeyspace, cassandraTable1, SomeColumns("filename", "filesize", "chunkcount"))
@@ -138,9 +141,7 @@ object SparkChunking {
       println("Saving binary chunks to Cassandra....")
       val y = fb.grouped(32768)
       var totalSize = 0
-      while ( {
-        i <= chunk_count
-      }) {
+      while ( { i <= chunk_count }) {
         val z = y.next
         println("Saving chunk #" + i + ", size " + z.size)
         totalSize = totalSize + z.size
@@ -161,7 +162,7 @@ object SparkChunking {
       //fb.grouped(32768).map( chunk_tuple => (file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
       //saveToCassandra(cassandraKeyspace, cassandraTable2,SomeColumns("filename","seqnum","bytes"))
 
-    }
+    } else println ("Nothing to save.....?")
     sc.stop()
   }
 }
