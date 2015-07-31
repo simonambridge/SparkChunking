@@ -1,14 +1,9 @@
-import java.nio.ByteBuffer
-import java.sql.Blob
-
-import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
 import org.apache.spark.sql.cassandra.CassandraSQLContext
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
 
-import scala.util.Try
 
 case class chunkMetaCaseClass(filename: String, filesize: Long, chunkcount: Long)
 case class chunkCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
@@ -50,14 +45,14 @@ object SparkUnChunking {
 
     // ========== main code starts here =========
     val file_name: String = args(0) // scala doesn't like args[0]
-    //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
 
     csc.setKeyspace(cassandraKeyspace)
-    // dereference the first thing in the list
-    // it comes back as an array of the columns in that row - which may contain 1 column
+    // dereference the first thing in the list with first()(0)
+    // it comes back as an array of the columns in that row - which contains 1 column
     // so 0 is the 0th element
-    val chunk_count:BigInt = csc.sql(s"select chunkcount from chunk_meta where filename='1Mfile';").first()(0).asInstanceOf[Long]
-    val file_size = csc.sql(s"select filesize from chunk_meta where filename='1Mfile';").first()(0)
+    val chunk_count:BigInt = csc.sql(s"select chunkcount from chunk_meta where filename='$file_name';").first()(0).asInstanceOf[Long]
+    val file_size = csc.sql(s"select filesize from chunk_meta where filename='$file_name';").first()(0)
+
 
     //val chunk: Option[Int] = chunk_count
     println("File name    : " + file_name)
@@ -65,7 +60,6 @@ object SparkUnChunking {
     println("32K Chunks   : " + chunk_count)
 
     var out = None: Option[FileOutputStream]
-
     var i: BigInt = 1
 
     try {
@@ -81,22 +75,9 @@ object SparkUnChunking {
     } catch {
       case e: IOException => e.printStackTrace
     } finally {
-      println("Entered finally ...")
+      println("File " + file_name + " successfully written")
       if (out.isDefined) out.get.close
     }
-
-
-
-
-
-
-
-
-
-
-
-
-    System.exit(0)
 
     sc.stop()
   }
