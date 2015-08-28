@@ -3,6 +3,9 @@ import com.datastax.spark.connector.cql.CassandraConnector
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
+import scala.concurrent.future
+import java.util.concurrent.Executors
+import scala.concurrent._
 
 case class chunkMetaDataCaseClass(filename: String, filesize: Long, chunkcount: Long)
 
@@ -105,6 +108,8 @@ object SparkChunking {
       val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
       println("%s, %d bytes".format(file_name, fb.size))
 
+      implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
+
       //val x = fb.grouped(32768).toArray // single element array
       // scala> println(x(0).size)
       // 32768
@@ -147,7 +152,9 @@ object SparkChunking {
         totalSize = totalSize + z.size
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        collection.saveToCassandra(cassandraKeyspace, cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
+        val writeChunk = future  {collection.saveToCassandra(cassandraKeyspace,
+                                                             cassandraTable2,
+                                                             SomeColumns("filename", "seqnum", "bytes")) }
         i = i + 1
       }
       if (remainder > 0) {
@@ -155,10 +162,12 @@ object SparkChunking {
         println("Saving chunk #" + i + ", size " + z.size)
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        collection.saveToCassandra(cassandraKeyspace, cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
+        val writeChunk = future  {collection.saveToCassandra(cassandraKeyspace,
+                                                             cassandraTable2,
+                                                             SomeColumns("filename", "seqnum", "bytes")) }
         totalSize = totalSize + z.size
       }
-      println("Total chunks saved : " + totalSize)
+      println("Total bytes saved : " + totalSize)
       //fb.grouped(32768).map( chunk_tuple => (file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
       //saveToCassandra(cassandraKeyspace, cassandraTable2,SomeColumns("filename","seqnum","bytes"))
 
