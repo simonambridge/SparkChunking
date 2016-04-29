@@ -3,14 +3,20 @@
 Cassandra is often considered as a solution to store or manage objects. The sizes and types of objects vary according to the individual use case, and present different challenges that require different solutions, for example:
 
 •	Streaming media services
+
 •	Small object storage
+
 •	Medium to large object storage
+
 
 The benefits of being able to store binary objects (blobs), in Cassandra are those that would be expected of a fully resilient and scalable distributed database:
 
 •	Scalability
+
 •	Availability
+
 •	Geographic distribution
+
 
 However, there are questions surrounding the performance and feasibility of storing large objects beyond 10K, and even small files can present problems when the objects are frequently written or updated.
 
@@ -18,6 +24,7 @@ Where the object sizes are of a suitable (limited) size, breaking them into a la
 
 
 ## Build and run the Test example
+
 1. Build the file ```sbt package```
 1. Submit the jar to the spark server ```dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar $1```
 
