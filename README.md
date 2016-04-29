@@ -1,4 +1,23 @@
-### To build and run the Test example
+# Introduction
+
+Cassandra is often considered as a solution to store or manage objects. The sizes and types of objects vary according to the individual use case, and present different challenges that require different solutions, for example:
+
+•	Streaming media services
+•	Small object storage
+•	Medium to large object storage
+
+The benefits of being able to store binary objects (blobs), in Cassandra are those that would be expected of a fully resilient and scalable distributed database:
+
+•	Scalability
+•	Availability
+•	Geographic distribution
+
+However, there are questions surrounding the performance and feasibility of storing large objects beyond 10K, and even small files can present problems when the objects are frequently written or updated.
+
+Where the object sizes are of a suitable (limited) size, breaking them into a larger number of sufficiently smaller component chunks is a very efficient mechanism for distributing the storage requirement across a number of nodes whilst avoiding the risk of overloading the Java heap capacity on each node. There are practical limitations to the size of files that would be suitable for chunking but we have seen successful tests with a 3.6Gb file chunked into 20 byte chunks and stored in Cassandra in 20 seconds. 
+
+
+## Build and run the Test example
 1. Build the file ```sbt package```
 1. Submit the jar to the spark server ```dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar $1```
 
