@@ -1,3 +1,4 @@
+
 import com.datastax.spark.connector._
 import com.datastax.spark.connector.cql.CassandraConnector
 import org.apache.log4j.{Level, Logger}
@@ -6,30 +7,22 @@ import java.io._
 import scala.concurrent.future
 import java.util.concurrent.Executors
 import scala.concurrent._
-
 case class chunkMetaDataCaseClass(filename: String, filesize: Long, chunkcount: Long)
-
 case class chunkDataCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
 
 object SparkChunking {
-
-
   def createSchema(cc: CassandraConnector, keySpaceName: String, tableName1: String, tableName2: String) = {
     cc.withSessionDo { session =>
       session.execute(s"CREATE KEYSPACE IF NOT EXISTS ${keySpaceName} WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor':1}")
-
       session.execute("CREATE TABLE IF NOT EXISTS " +
         s"${keySpaceName}.${tableName1} (filename text, filesize bigint, chunkcount bigint, " +
         s"primary key( filename ));")
-
       session.execute("CREATE TABLE IF NOT EXISTS " +
         s"${keySpaceName}.${tableName2} (filename text, seqnum bigint, bytes blob, " +
         s"primary key ((filename), seqnum));")
     }
   }
-
   def main(args: Array[String]) {
-
     // Check how many arguments were passed in
     if(args.length == 0)
     {
@@ -58,43 +51,33 @@ object SparkChunking {
     // Connect to the Spark cluster:
     lazy val sc = new SparkContext(sparkConf)
     lazy val cc = CassandraConnector(sc.getConf)
-
     createSchema(cc, cassandraKeyspace, cassandraTable1, cassandraTable2)
 
     // ========== main code starts here =========
-
-    //val file_path = "/home/dse/"
-    //val file_name = "100Kfile"
     val file_name: String = args(0) // scala doesn't like args[0]
     val fq_file_name = file_name
     //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
-
     //Java
     val file_exists = new java.io.File(fq_file_name).exists
     val file_size = new java.io.File(file_name).length()
-
     val chunk_count = (file_size / 32768.0).intValue
     val remainder = file_size % 32768
     var total_chunks = chunk_count
     if (remainder > 0) {total_chunks=chunk_count + 1}
-
-    //println("File path    : " + file_path)
-    println("File name    : " + file_name)
-    println("File exists  : " + file_exists)
-    println("File size    : " + file_size)
-    println("32K Chunks   : " + chunk_count)
-    println("Modulo       : " + remainder)
+    //println("File path : " + file_path)
+    println("File name : " + file_name)
+    println("File exists : " + file_exists)
+    println("File size : " + file_size)
+    println("32K Chunks : " + chunk_count)
+    println("Modulo : " + remainder)
     println("Total chunks : " + total_chunks)
-
     // ------ save meta data ------
     if (chunk_count > 0 || remainder > 0) {
       val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, total_chunks))
       val collection = sc.parallelize(chunkMetaDataSeq)
       println("Saving blob file metadata to Cassandra....")
       collection.saveToCassandra(cassandraKeyspace, cassandraTable1, SomeColumns("filename", "filesize", "chunkcount"))
-
       println("File " + file_name + " metadata saved to Cassandra")
-
       // ------ save chunk data ------
       def readBinaryFile(input: InputStream): Array[Byte] = {
         val fos = new ByteArrayOutputStream(65535)
@@ -107,9 +90,7 @@ object SparkChunking {
       }
       val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
       println("%s, %d bytes".format(file_name, fb.size))
-
       implicit val ec = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
-
       //val x = fb.grouped(32768).toArray // single element array
       // scala> println(x(0).size)
       // 32768
@@ -120,29 +101,23 @@ object SparkChunking {
       // scala> println(x(chunk_count).size)
       // 4096
       // Total is 102400
-      // println(x(22).size)
-      // java.lang.ArrayIndexOutOfBoundsException: 22
       // scala> println("%s, %d bytes".format(file_name, fb.size))
       // 100Kfile, 102400 bytes
-
       var i: Int = 1
-
-      // while ({i <= chunk_count}) {  // 100K file
-      //       println(x(i).size)
-      //       i=i+1
-      //     }
+      // while ({i <= chunk_count}) { // 100K file
+      // println(x(i).size)
+      // i=i+1
+      // }
       // 32768
       // 32768
       // 32768
       // 4096
-
       // scala> fb.grouped(32768).toArray.zipWithIndex foreach(e => println(e._2, e._1.size))
       // returns a tuple of value and index
       // (0,32768)
       // (1,32768)
       // (2,32768)
       // (3,4096)
-
       println("Saving binary chunks to Cassandra....")
       val y = fb.grouped(32768)
       var totalSize = 0
@@ -152,9 +127,12 @@ object SparkChunking {
         totalSize = totalSize + z.size
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        val writeChunk = future  {collection.saveToCassandra(cassandraKeyspace,
-                                                             cassandraTable2,
-                                                             SomeColumns("filename", "seqnum", "bytes")) }
+//        val writeChunk = future {collection.saveToCassandra(cassandraKeyspace,
+//          cassandraTable2,
+//          SomeColumns("filename", "seqnum", "bytes")) }
+        collection.saveToCassandra(cassandraKeyspace,
+          cassandraTable2,
+          SomeColumns("filename", "seqnum", "bytes"))
         i = i + 1
       }
       if (remainder > 0) {
@@ -162,15 +140,15 @@ object SparkChunking {
         println("Saving chunk #" + i + ", size " + z.size)
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        val writeChunk = future  {collection.saveToCassandra(cassandraKeyspace,
-                                                             cassandraTable2,
-                                                             SomeColumns("filename", "seqnum", "bytes")) }
+//        val writeChunk = future {collection.saveToCassandra(cassandraKeyspace,
+//          cassandraTable2,
+//          SomeColumns("filename", "seqnum", "bytes")) }
+        collection.saveToCassandra(cassandraKeyspace,
+          cassandraTable2,
+          SomeColumns("filename", "seqnum", "bytes"))
         totalSize = totalSize + z.size
       }
       println("Total bytes saved : " + totalSize)
-      //fb.grouped(32768).map( chunk_tuple => (file_name,chunk_tuple._2, chunk_tuple._1 )).flatMap( x=>x )
-      //saveToCassandra(cassandraKeyspace, cassandraTable2,SomeColumns("filename","seqnum","bytes"))
-
     } else println ("Nothing to save.....?")
     sc.stop()
   }

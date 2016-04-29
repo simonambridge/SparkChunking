@@ -4,6 +4,7 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
 
+
 case class chunkMetaCaseClass(filename: String, filesize: Long, chunkcount: Long)
 
 case class chunkCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
@@ -49,11 +50,11 @@ object SparkUnChunking {
     // dereference the first thing in the list with first()(0)
     // it comes back as an array of the columns in that row - which contains 1 column
     // so 0 is the 0th element
-    val chunkRDD = csc.sql(s"select chunkcount from chunk_meta where filename='$file_name';")
+    val chunkRDD = csc.sql(s"select chunkcount from chunk_meta where filename='$file_name'")
 
     if (chunkRDD.count > 0) {
       val chunk_count: BigInt = chunkRDD.first()(0).asInstanceOf[Long]
-      val file_size = csc.sql(s"select filesize from chunk_meta where filename='$file_name';").first()(0)
+      val file_size = csc.sql(s"select filesize from chunk_meta where filename='$file_name'").first()(0)
 
       //val chunk: Option[Int] = chunk_count
       println("File name    : " + file_name)
@@ -68,7 +69,7 @@ object SparkUnChunking {
         while ( {
           i <= chunk_count
         }) {
-          val chunk: Array[Byte] = csc.sql(s"select bytes from chunk_data where filename='$file_name' and seqnum=$i;").first()(0).asInstanceOf[Array[Byte]]
+          val chunk: Array[Byte] = csc.sql(s"select bytes from chunk_data where filename='$file_name' and seqnum=$i").first()(0).asInstanceOf[Array[Byte]]
           println("Writing chunk " + i + " to " + file_name + "_copy")
           out.get.write(chunk)
           i = i + 1
