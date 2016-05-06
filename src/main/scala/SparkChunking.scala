@@ -29,7 +29,8 @@ object SparkChunking {
     // Check how many arguments were passed in - must be three
     if (args.length <3) {
       System.out.println("Error - one or more missing parameters")
-      System.out.println("Proper Usage is: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename>");
+      System.out.println("Proper Usage is: dse spark-submit --class SparkChunking " +
+        "./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename> <chunk size in bytes> <[p]arallel|[s]erial>");
       System.exit(0);
     }
 
