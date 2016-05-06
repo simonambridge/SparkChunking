@@ -5,15 +5,14 @@ import org.apache.log4j.{Level, Logger}
 import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
 
-import scala.concurrent.{future, blocking, Future, Await}
+import scala.concurrent.{future, blocking, Future, Await, duration}
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration._
 
-import scala.concurrent._
 case class chunkMetaDataCaseClass(filename: String, filesize: Long, chunkcount: Long)
 case class chunkDataCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
 
 object SparkChunking {
+
   def createSchema(cc: CassandraConnector, keySpaceName: String, tableName1: String, tableName2: String) = {
     cc.withSessionDo { session =>
       session.execute(s"CREATE KEYSPACE IF NOT EXISTS ${keySpaceName} WITH REPLICATION = { 'class':'SimpleStrategy', 'replication_factor':1}")
@@ -25,11 +24,11 @@ object SparkChunking {
         s"primary key ((filename), seqnum));")
     }
   }
+
   def main(args: Array[String]) {
-    // Check how many arguments were passed in
+    // Check how many arguments were passed in - must be three
     if (args.length <3) {
-      System.out.println("Usage: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename> <chunksize (bytes)> <[p]arallel|[s]erial>");
-      System.out.println("Error - parameter errors")
+      System.out.println("Error - one or more missing parameters")
       System.out.println("Proper Usage is: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename>");
       System.exit(0);
     }
@@ -44,12 +43,12 @@ object SparkChunking {
     else if (chunk_mode.equals("s")) {
       System.out.println("Writing chunks to Cassandra in serial"); }
     else {
-      System.out.println("Invalid chunk pattern: " + chunk_mode);
+      System.out.println("Invalid chunk pattern: " + chunk_mode + " - must be p or s");
       return;
     }
 
-    if (chunk_size<0 || chunk_size>64500) {
-      System.out.println("Invalid data sample rate: " + chunk_size);
+    if (chunk_size<0 || chunk_size>64000) {
+      System.out.println("Invalid data sample rate: " + chunk_size + " must be less thsn 64000");
       return; }
     else {
       System.out.println("Chunk size: " + chunk_size + " bytes");
@@ -87,7 +86,6 @@ object SparkChunking {
     val remainder = file_size % chunk_size
     var total_chunks = chunk_count
     if (remainder > 0) {total_chunks=chunk_count + 1}
-    //println("File path : " + file_path)
     println("File name : " + file_name)
     println("File exists : " + file_exists)
     println("File size : " + file_size)
@@ -105,13 +103,13 @@ object SparkChunking {
       println(file_name + " metadata saved to Cassandra")
       // ------ save chunk data ------
       def readBinaryFile(input: InputStream): Array[Byte] = {
-        val fos = new ByteArrayOutputStream(65535)
+        val bos = new ByteArrayOutputStream(65535)
         val bis = new BufferedInputStream(input)
         val buf = new Array[Byte](1024)
         Stream.continually(bis.read(buf))
           .takeWhile(_ != -1)
-          .foreach(fos.write(buf, 0, _))
-        fos.toByteArray
+          .foreach(bos.write(buf, 0, _))
+        bos.toByteArray
       }
       val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
       println("%s, %d bytes".format(file_name, fb.size))
@@ -122,18 +120,18 @@ object SparkChunking {
 
       while ( { i <= chunk_count }) {
         val z = y.next
-//        println("Saving chunk #" + i + ", size " + z.size)
+        // println("Saving chunk #" + i + ", size " + z.size)
         totalSize = totalSize + z.size
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
         val collection = sc.parallelize(chunkDataSeq)
-        if (chunk_mode == "s") {
-          //println("Serial save chunk #" + i + ", size " + z.size)
+        if (chunk_mode == "s") {                                              // serial - the slow way
+          // println("Serial save chunk #" + i + ", size " + z.size)
           collection.saveToCassandra(cassandraKeyspace,
             cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
         }
         else {
-          val future = Future {
-            //println("Parallel save chunk #" + i + ", size " + z.size)
+          val future = Future {                                               // parallel - the fast way
+            // println("Parallel save chunk #" + i + ", size " + z.size)
             collection.saveToCassandra(cassandraKeyspace,
             cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
           }
@@ -142,7 +140,7 @@ object SparkChunking {
         i = i + 1
       }
 
-      if (remainder > 0) {
+      if (remainder > 0) {                                                    // leftovers
         val z = y.next
         //println("Saving chunk #" + i + ", size " + z.size)
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
