@@ -1,2 +1,3 @@
-dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar $1
+echo "Parameters are: File name, chunk size, p|s"
+dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar $1 $2 $3
 

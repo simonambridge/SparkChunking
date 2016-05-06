@@ -69,7 +69,8 @@ object SparkUnChunking {
         while ( {
           i <= chunk_count
         }) {
-          val chunk: Array[Byte] = csc.sql(s"select bytes from chunk_data where filename='$file_name' and seqnum=$i").first()(0).asInstanceOf[Array[Byte]]
+          val chunk: Array[Byte] = csc.sql(s"select bytes from chunk_data where filename='$file_name' and seqnum=$i")
+                                        .first()(0).asInstanceOf[Array[Byte]]
           println("Writing chunk " + i + " to " + file_name + "_copy")
           out.get.write(chunk)
           i = i + 1

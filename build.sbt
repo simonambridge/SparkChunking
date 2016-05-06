@@ -19,3 +19,7 @@ libraryDependencies += "org.apache.spark" %% "spark-mllib" % "1.4.1" % "provided
 libraryDependencies += "com.datastax.spark" % "spark-cassandra-connector_2.10" % "1.4.1" % "provided"
 
 resolvers += "Akka Repository" at "http://repo.akka.io/releases/"
+
+resolvers += "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/"
+  
+libraryDependencies += "com.typesafe.akka" % "akka-actor" % "2.0"
