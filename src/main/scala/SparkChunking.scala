@@ -6,9 +6,9 @@ import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
 
 import scala.concurrent.{future, blocking, Future, Await, duration}
+import scala.util.{Success, Failure}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.util.{Success, Failure}
 import scala.util.Random
 
 case class chunkMetaDataCaseClass(filename: String, filesize: Long, chunkcount: Long)
@@ -84,22 +84,20 @@ object SparkChunking {
 
     // ========== main code starts here =========
     val fq_file_name = file_name
-    //val bigfile = sc.binaryFiles(s"file://" + filePath + fileName)
-
     val file_exists = new java.io.File(fq_file_name).exists
     val file_size = new java.io.File(file_name).length()
     val chunkQuotient = (file_size / chunk_size).intValue
     val remainder = file_size % chunk_size
 
-    var chunksToWrite: Int = 0
-    var chunksWritten: Int = 0
     var totalBytesWritten = 0
-    var chunkCounter: Int = 0
+    var chunksToWrite: Int = 0
+    var chunkCounter: Int = 0                         // loop iterator
 
     if (remainder > 0)
       { chunksToWrite=chunkQuotient + 1 }
     else
       { chunksToWrite=chunkQuotient}
+    val writeArray = new Array [Int] (chunksToWrite)  // use this to map completion of futures
 
     println("File name : " + file_name)
     println(" - File exists : " + file_exists)
@@ -120,6 +118,7 @@ object SparkChunking {
       println("Saving blob file metadata to Cassandra....")
       collection.saveToCassandra(cassandraKeyspace, cassandraTable1, SomeColumns("filename", "filesize", "chunkcount"))
       println(" - " + file_name + " metadata saved to Cassandra")
+
       // ------ save chunk data ------
       def readBinaryFile(input: InputStream): Array[Byte] = {
         val bos = new ByteArrayOutputStream(65535)
@@ -130,39 +129,50 @@ object SparkChunking {
           .foreach(bos.write(buf, 0, _))
         bos.toByteArray
       }
-      val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
+
+      // create byte array
+      val fb = readBinaryFile(new FileInputStream(file_name))
       println(" - %s, %d bytes".format(file_name, fb.size))
-      println("Writing binary chunks to Cassandra....")
+      println("Writing binary chunks to Cassandra.")
       val y = fb.grouped(chunk_size.toInt)
 
+      // main chunking loop
       while ( chunkCounter < chunkQuotient ) {
-        chunkCounter = chunkCounter + 1
+        chunkCounter = chunkCounter + 1                             // starts at zero - increment from 1
+        val x = chunkCounter                                        // local scope index for future array
         val z = y.next
-        // println("Writing chunk #" + i + ", size " + z.size)
+
         totalBytesWritten = totalBytesWritten + z.size
         val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, chunkCounter, z))
         val collection = sc.parallelize(chunkDataSeq)
-        
+        print(".")
+
         if (chunk_mode == "s") {                                              // serial - the slow way
-          // println("Serial save chunk #" + i + ", size " + z.size)
+          // println("Serial save - chunk #" + chunkCounter + ", size " + z.size)
           collection.saveToCassandra(cassandraKeyspace,
             cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
-          chunksWritten = chunksWritten + 1
+          writeArray(chunkCounter-1) = 1
         }
         else {
           val writeFuture = Future {                                          // parallel - the fast way
-            // println("Parallel save chunk #" + i + ", size " + z.size)
+            // println("Parallel save - chunk #" + chunkCounter + ", size " + z.size)
             collection.saveToCassandra(cassandraKeyspace,
               cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
-            chunksWritten = chunksWritten + 1
+            x      // return x to onComplete
           }
 
-          //val result = Await.result(writeFuture, 1 second)
-
+          writeFuture.onComplete {
+            case Success(result) => {
+              writeArray(result - 1) = 1
+              // println("Wrote chunk " + result)
+            }
+            case Failure(t) => println("An error has occurred: " + t.getMessage)
+          }
         }
       }
 
-      if (remainder > 0) {                                                    // leftovers
+      // write any remainder (modulus)
+      if (remainder > 0) {
         chunkCounter = chunkCounter + 1
         val z = y.next
         //println("Saving chunk #" + i + ", size " + z.size)
@@ -171,20 +181,27 @@ object SparkChunking {
         collection.saveToCassandra(cassandraKeyspace,
           cassandraTable2,SomeColumns("filename", "seqnum", "bytes"))
         totalBytesWritten = totalBytesWritten + z.size
-
-        chunksWritten = chunksWritten + 1
+        writeArray(chunkCounter-1) = 1
+        //println("Wrote the modulus...")
       }
-    } else println (" - Nothing to save.....?")
+
+    } else println (" - No chunks, nothing to save.....?")
+    println
 
     // wait for futures to complete
-    while ( chunksWritten != chunksToWrite )
-      {
-        Thread.sleep(500)
-        println("Chunks written : " + chunksWritten)
-      }
+    while ( writeArray.exists( _ == 0 ) )
+    {
+      Thread.sleep(500)
+      //writeArray.foreach { print }
+      //println()
+      // or
+      var sum = writeArray reduceLeft { _ + _ }
+      println(sum + " of " + chunksToWrite + " futures written...")
+    }
 
+    // summary check at the end
     println(" - Total bytes written : " + totalBytesWritten)
-    println(" - Total chunks written : " + chunksWritten)
+    println(" - Total chunks written : " + chunkCounter)
 
     sc.stop()
 
