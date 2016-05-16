@@ -147,6 +147,7 @@ object SparkChunking {
           // println("Serial save chunk #" + i + ", size " + z.size)
           collection.saveToCassandra(cassandraKeyspace,
             cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
+          chunksWritten = chunksWritten + 1
         }
         else {
           val writeFuture = Future {                                          // parallel - the fast way
@@ -170,6 +171,7 @@ object SparkChunking {
         collection.saveToCassandra(cassandraKeyspace,
           cassandraTable2,SomeColumns("filename", "seqnum", "bytes"))
         totalBytesWritten = totalBytesWritten + z.size
+
         chunksWritten = chunksWritten + 1
       }
     } else println (" - Nothing to save.....?")
