@@ -192,9 +192,10 @@ object SparkChunking {
     while ( writeArray.exists( _ == 0 ) )
     {
       Thread.sleep(500)
+      // use this output to display a byte-mapped index of the array
       //writeArray.foreach { print }
       //println()
-      // or
+      // or use this output instead
       var sum = writeArray reduceLeft { _ + _ }
       println(sum + " of " + chunksToWrite + " futures written...")
     }
