@@ -6,7 +6,10 @@ import org.apache.spark.{SparkConf, SparkContext}
 import java.io._
 
 import scala.concurrent.{future, blocking, Future, Await, duration}
+import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.util.{Success, Failure}
+import scala.util.Random
 
 case class chunkMetaDataCaseClass(filename: String, filesize: Long, chunkcount: Long)
 case class chunkDataCaseClass(filename: String, seqnum: Long, bytes: Array[Byte])
@@ -21,11 +24,14 @@ object SparkChunking {
         s"primary key( filename ));")
       session.execute("CREATE TABLE IF NOT EXISTS " +
         s"${keySpaceName}.${tableName2} (filename text, seqnum bigint, bytes blob, " +
-        s"primary key ((filename), seqnum));")
+        s"primary key ((filename, seqnum)));")
     }
   }
 
   def main(args: Array[String]) {
+
+    val startProgramTime: Long = System.currentTimeMillis
+
     // Check how many arguments were passed in - must be three
     if (args.length <3) {
       System.out.println("Error - one or more missing parameters")
@@ -38,31 +44,30 @@ object SparkChunking {
     val chunk_size: BigInt = args(1).toInt
     val chunk_mode: String = args(2)
 
-    System.out.println("*****************************************");
+    println("")
+    System.out.println("*****************************************************");
     if (chunk_mode.equals("p")) {
       System.out.println("Writing " + chunk_size + " byte chunks to Cassandra in parallel"); }
     else if (chunk_mode.equals("s")) {
-      System.out.println("Writing chunks to Cassandra in serial"); }
+      System.out.println("Writing " + chunk_size + " byte chunks to Cassandra in serial"); }
     else {
       System.out.println("Invalid chunk pattern: " + chunk_mode + " - must be p or s");
       return;
     }
+    System.out.println("*****************************************************");
 
-    if (chunk_size<0 || chunk_size>64000) {
-      System.out.println("Invalid data sample rate: " + chunk_size + " must be less thsn 64000");
+    if (chunk_size<1 || chunk_size>64000) {
+      System.out.println("Invalid data sample rate: " + chunk_size + " must be less than 64000");
       return; }
-    else {
-      System.out.println("Chunk size: " + chunk_size + " bytes");
-    }
 
     /* Set the logger level. Optionally increase value from Level.ERROR to LEVEL.WARN or more verbose yet, LEVEL.INFO */
     Logger.getRootLogger.setLevel(Level.ERROR)
 
     val sparkMasterHost = "127.0.0.1"
     val cassandraHost = "127.0.0.1"
-    val cassandraKeyspace = "benchmark"
-    val cassandraTable1 = "chunk_meta"
-    val cassandraTable2 = "chunk_data"
+    val cassandraKeyspace = "chunking"
+    val cassandraTable1 = "chunk_metadata"
+    val cassandraTable2 = "chunk_blobdata"
 
     // Tell Spark the address of one Cassandra node:
     val sparkConf = new SparkConf(true)
@@ -83,25 +88,38 @@ object SparkChunking {
 
     val file_exists = new java.io.File(fq_file_name).exists
     val file_size = new java.io.File(file_name).length()
-    val chunk_count = (file_size / chunk_size).intValue
+    val chunkQuotient = (file_size / chunk_size).intValue
     val remainder = file_size % chunk_size
-    var total_chunks = chunk_count
-    if (remainder > 0) {total_chunks=chunk_count + 1}
+
+    var chunksToWrite: Int = 0
+    var chunksWritten: Int = 0
+    var totalBytesWritten = 0
+    var chunkCounter: Int = 0
+
+    if (remainder > 0)
+      { chunksToWrite=chunkQuotient + 1 }
+    else
+      { chunksToWrite=chunkQuotient}
+
     println("File name : " + file_name)
-    println("File exists : " + file_exists)
-    println("File size : " + file_size)
-    println(chunk_size + " byte chunks : " + chunk_count)
-    println("Modulo : " + remainder)
-    println("Total chunks : " + total_chunks)
+    println(" - File exists : " + file_exists)
+    println(" - File size : " + file_size)
+    println(" - " + chunk_size + " byte chunks : " + chunkQuotient)
+    println(" - Modulo : " + remainder)
+    println("Total chunks to write : " + chunksToWrite)
+    println("")
     System.out.println("*****************************************");
 
+    val startChunkTime: Long = System.currentTimeMillis
+
     // ------ save meta data ------
-    if (chunk_count > 0 || remainder > 0) {
-      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, total_chunks))
+    if (chunkQuotient > 0 || remainder > 0) {
+
+      val chunkMetaDataSeq = Seq(new chunkMetaDataCaseClass(file_name, file_size, chunksToWrite))
       val collection = sc.parallelize(chunkMetaDataSeq)
       println("Saving blob file metadata to Cassandra....")
       collection.saveToCassandra(cassandraKeyspace, cassandraTable1, SomeColumns("filename", "filesize", "chunkcount"))
-      println(file_name + " metadata saved to Cassandra")
+      println(" - " + file_name + " metadata saved to Cassandra")
       // ------ save chunk data ------
       def readBinaryFile(input: InputStream): Array[Byte] = {
         val bos = new ByteArrayOutputStream(65535)
@@ -113,46 +131,67 @@ object SparkChunking {
         bos.toByteArray
       }
       val fb = readBinaryFile(new FileInputStream(file_name)) // create byte array
-      println("%s, %d bytes".format(file_name, fb.size))
-      var i: Int = 1
-      println("Saving binary chunks to Cassandra....")
+      println(" - %s, %d bytes".format(file_name, fb.size))
+      println("Writing binary chunks to Cassandra....")
       val y = fb.grouped(chunk_size.toInt)
-      var totalSize = 0
 
-      while ( { i <= chunk_count }) {
+      while ( chunkCounter < chunkQuotient ) {
+        chunkCounter = chunkCounter + 1
         val z = y.next
-        // println("Saving chunk #" + i + ", size " + z.size)
-        totalSize = totalSize + z.size
-        val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
+        // println("Writing chunk #" + i + ", size " + z.size)
+        totalBytesWritten = totalBytesWritten + z.size
+        val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, chunkCounter, z))
         val collection = sc.parallelize(chunkDataSeq)
+        
         if (chunk_mode == "s") {                                              // serial - the slow way
           // println("Serial save chunk #" + i + ", size " + z.size)
           collection.saveToCassandra(cassandraKeyspace,
             cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
         }
         else {
-          val future = Future {                                               // parallel - the fast way
+          val writeFuture = Future {                                          // parallel - the fast way
             // println("Parallel save chunk #" + i + ", size " + z.size)
             collection.saveToCassandra(cassandraKeyspace,
-            cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
+              cassandraTable2, SomeColumns("filename", "seqnum", "bytes"))
+            chunksWritten = chunksWritten + 1
           }
-          //val result = Await.result(future, 1 second)
+
+          //val result = Await.result(writeFuture, 1 second)
+
         }
-        i = i + 1
       }
 
       if (remainder > 0) {                                                    // leftovers
+        chunkCounter = chunkCounter + 1
         val z = y.next
         //println("Saving chunk #" + i + ", size " + z.size)
-        val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, i, z))
+        val chunkDataSeq = Seq(new chunkDataCaseClass(file_name, chunkCounter, z))
         val collection = sc.parallelize(chunkDataSeq)
         collection.saveToCassandra(cassandraKeyspace,
-          cassandraTable2,
-          SomeColumns("filename", "seqnum", "bytes"))
-        totalSize = totalSize + z.size
+          cassandraTable2,SomeColumns("filename", "seqnum", "bytes"))
+        totalBytesWritten = totalBytesWritten + z.size
+        chunksWritten = chunksWritten + 1
       }
-      println("Total bytes saved : " + totalSize)
-    } else println ("Nothing to save.....?")
+    } else println (" - Nothing to save.....?")
+
+    // wait for futures to complete
+    while ( chunksWritten != chunksToWrite )
+      {
+        Thread.sleep(500)
+        println("Chunks written : " + chunksWritten)
+      }
+
+    println(" - Total bytes written : " + totalBytesWritten)
+    println(" - Total chunks written : " + chunksWritten)
+
     sc.stop()
+
+    val endProgramTime: Long = System.currentTimeMillis
+
+    println("")
+    println("Human run time : " + (endProgramTime-startProgramTime).toFloat / 1000 + " seconds")
+    println("Human database time : " + (endProgramTime-startChunkTime).toFloat / 1000 + " seconds")
+    println("")
   }
+
 }

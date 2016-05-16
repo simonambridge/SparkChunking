@@ -25,9 +25,9 @@ object SparkUnChunking {
 
     val sparkMasterHost = "127.0.0.1"
     val cassandraHost = "127.0.0.1"
-    val cassandraKeyspace = "benchmark"
-    val cassandraTable1 = "chunk_meta"
-    val cassandraTable2 = "chunk_data"
+    val cassandraKeyspace = "chunking"
+    val cassandraTable1 = "chunk_metadata"
+    val cassandraTable2 = "chunk_blobdata"
 
     // Tell Spark the address of one Cassandra node:
     val sparkConf = new SparkConf(true)
@@ -42,19 +42,19 @@ object SparkUnChunking {
     lazy val cc = CassandraConnector(sc.getConf)
     // create a new SparkSQLContext
     val csc = new CassandraSQLContext(sc)
+    csc.setKeyspace(cassandraKeyspace)
 
     // ========== main code starts here =========
     val file_name: String = args(0) // scala doesn't like args[0]
 
-    csc.setKeyspace(cassandraKeyspace)
     // dereference the first thing in the list with first()(0)
     // it comes back as an array of the columns in that row - which contains 1 column
     // so 0 is the 0th element
-    val chunkRDD = csc.sql(s"select chunkcount from chunk_meta where filename='$file_name'")
+    val chunkRDD = csc.sql(s"select chunkcount from chunk_metadata where filename='$file_name'")
 
     if (chunkRDD.count > 0) {
       val chunk_count: BigInt = chunkRDD.first()(0).asInstanceOf[Long]
-      val file_size = csc.sql(s"select filesize from chunk_meta where filename='$file_name'").first()(0)
+      val file_size = csc.sql(s"select filesize from chunk_metadata where filename='$file_name'").first()(0)
 
       //val chunk: Option[Int] = chunk_count
       println("File name    : " + file_name)
@@ -66,21 +66,21 @@ object SparkUnChunking {
 
       try {
         out = Some(new FileOutputStream(file_name + "_copy"))
-        while ( {
-          i <= chunk_count
-        }) {
-          val chunk: Array[Byte] = csc.sql(s"select bytes from chunk_data where filename='$file_name' and seqnum=$i")
-                                        .first()(0).asInstanceOf[Array[Byte]]
+        while ( { i <= chunk_count } ) {
           println("Writing chunk " + i + " to " + file_name + "_copy")
+          val chunk: Array[Byte] = csc.sql(s"select bytes from chunk_blobdata where filename='$file_name' and seqnum=$i")
+                                        .first()(0).asInstanceOf[Array[Byte]]
           out.get.write(chunk)
           i = i + 1
+
         }
       } catch {
         case e: IOException => e.printStackTrace
       } finally {
-        println("File " + file_name + " successfully un-chunked")
-        if (out.isDefined) out.get.close
+        if (out.isDefined)
+          out.get.close
       }
+      println("File " + file_name + " successfully un-chunked")
 
       sc.stop()
     } else println("File " + file_name + " not found in database")
