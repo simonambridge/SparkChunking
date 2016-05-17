@@ -45,17 +45,15 @@ Use the supplied shell script ('chunk') for convenience:
 ```
 For example - chunk the file 'image_file.png' into 512 byte chunks, in parallel:
 ```
-dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar image_file.png 512 p
+./chunk image_file.png 512 p
 ```
 
 ```
 $ ./chunk
 
-Error - no filename supplied
-
-Proper Usage is: dse spark-submit --class SparkChunking
-
-./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename> <chunk size in bytes> <[p]arallel|[s]erial>
+Parameters are: File name, chunk size, p|s
+Error - one or more missing parameters
+Proper Usage is: dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar <filename> <chunk size in bytes> <[p]arallel|[s]erial>
 ```
 
 ```
