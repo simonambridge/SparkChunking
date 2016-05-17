@@ -29,14 +29,16 @@ sbt package
 
 
 
-#2	Submit the jar to the spark server - parameters are the file to chunk, the size of the chunks, and whether to write the chunks to Cassandra in parallel or in series:
+#2	Submit the jar to the spark server
+Parameters are: the file to chunk, the size of the chunks, and whether to write the chunks to Cassandra in parallel or in series:
 
 ```
 dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0.1.jar $1 $2 $3
 ```
 
 
-#3	From the command line - use the supplied shell script ('chunk') for convenience:
+#3	From the command line
+Use the supplied shell script ('chunk') for convenience:
 
 ```
 ./chunk <file_to_chunk> <chunk size in bytes> <[p]arallel|[s]erial>
