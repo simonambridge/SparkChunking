@@ -23,7 +23,7 @@ It’s not so much a matter of ‘can it be done’, more a question of  ‘shou
 
 One approach would be to break the files up into smaller chunks and store those chunks distributed evenly across the cluster using the in-built distributed storage feature of Cassandra. An ideal mechanism for achieving this might be to use a parallelised Scala or Java process as described here. This would avoid the problem of node storage hotspots when storing files, and heap pressure on a single node when writing or reading a file.
 
-#1	Build the fat jar file package
+#1	Build The Jar Package
 
 sbt package
 
