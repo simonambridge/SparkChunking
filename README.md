@@ -1,4 +1,4 @@
-#1 Cassandra As An Object Store
+#Cassandra As An Object Store
 
 I frequently encounter clients and prospective customers who enquire whether it is feasible to use Cassandra as an object store. 
 
