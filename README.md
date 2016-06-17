@@ -23,13 +23,21 @@ It’s not so much a matter of ‘can it be done’, more a question of  ‘shou
 
 One approach would be to break the files up into smaller chunks and store those chunks distributed evenly across the cluster using the in-built distributed storage feature of Cassandra. An ideal mechanism for achieving this might be to use a parallelised Scala or Java process as described here. This would avoid the problem of node storage hotspots when storing files, and heap pressure on a single node when writing or reading a file.
 
+#Prequisites
+## Install sbt (Scala Build Tool)
+```
+echo "deb http://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list 
+sudo apt-get update 
+sudo apt-get install sbt
+```
+
 #1	Build The Jar Package
 
 sbt package
 
 
 
-#2	Submit the jar to the spark server
+#2	Submit The Jar To The Spark Server
 Parameters are: the file to chunk, the size of the chunks, and whether to write the chunks to Cassandra in parallel or in series:
 
 ```
@@ -37,7 +45,7 @@ dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0
 ```
 
 
-#3	From the command line
+#3	From The Command Line
 Use the supplied shell script ('chunk') for convenience:
 
 ```
