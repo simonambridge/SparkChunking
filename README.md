@@ -31,13 +31,13 @@ sudo apt-get update
 sudo apt-get install sbt
 ```
 
-# 1	Build The Jar Package
+## 1	Build The Jar Package
 
 sbt package
 
 
 
-# 2	Submit The Jar To The Spark Server
+## 2	Submit The Jar To The Spark Server
 Parameters are: the file to chunk, the size of the chunks, and whether to write the chunks to Cassandra in parallel or in series:
 
 ```
@@ -45,7 +45,7 @@ dse spark-submit --class SparkChunking ./target/scala-2.10/spark-chunking_2.10-0
 ```
 
 
-# 3	From The Command Line
+## 3	From The Command Line
 Use the supplied shell script ('chunk') for convenience:
 
 ```
