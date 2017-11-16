@@ -1,4 +1,4 @@
-#Cassandra As An Object Store
+# Cassandra As An Object Store
 
 I frequently encounter clients and prospective customers who enquire whether it is feasible to use Cassandra as an object store. 
 
@@ -23,7 +23,7 @@ It’s not so much a matter of ‘can it be done’, more a question of  ‘shou
 
 One approach would be to break the files up into smaller chunks and store those chunks distributed evenly across the cluster using the in-built distributed storage feature of Cassandra. An ideal mechanism for achieving this might be to use a parallelised Scala or Java process as described here. This would avoid the problem of node storage hotspots when storing files, and heap pressure on a single node when writing or reading a file.
 
-#Prequisites
+# Prequisites
 ## Install sbt (Scala Build Tool)
 ```
 echo "deb http://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list 
